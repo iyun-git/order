@@ -7,6 +7,63 @@ Original file is located at
     https://colab.research.google.com/drive/1L0waKq778w9mwAiwEkhn-HSDYuFvsqdX
 """
 
+# =====================================================================
+# [邢譯云 負責] 三、商業運算邏輯與動態找零收支系統
+# =====================================================================
+
+def calculate_total(order):
+    """動態計算單筆訂單的總售價"""
+    return sum(menu[item_id]["price"] * qty for item_id, qty in order.items())
+
+def calculate_total_cost(order):
+    """計算單筆訂單的背後總成本（用於進階獲利分析）"""
+    return sum(menu[item_id]["cost"] * qty for item_id, qty in order.items())
+
+def show_order_details(order):
+    """條列明細化呈現當前點餐內容"""
+    print("\n" + "-"*10 + " 🧾 顧客消費明細清單 " + "-"*10)
+    for item_id, qty in order.items():
+        item = menu[item_id]
+        subtotal = item['price'] * qty
+        pad = get_pad_len(item['name'], 14)
+        name_str = item['name'] + " " * pad
+        print(f" • {name_str} x {qty:>2} 份 = ${subtotal:>4}")
+    print("-" * 38)
+
+
+def checkout(order):
+    """結帳收銀與自動扣減庫存系統"""
+    if not order:
+        print("⚠️【系統提示】此訂單內無任何餐點，不需進行結帳。")
+        return False
+
+    show_order_details(order)
+    total_payable = calculate_total(order)
+    print(f"💰 顧客應付總金額： ${total_payable}")
+
+    while True:
+        paid_input = input(">> 請輸入店員實際收取金額: ").strip()
+        if not paid_input.isdigit():
+            print("❌【錯誤】請輸入有效的金錢數字金額！")
+            continue
+
+        paid = int(paid_input)
+        change = paid - total_payable
+
+        if change < 0:
+            print(f"⚠️【金額不足】顧客給的錢不夠！還差 ${abs(change)}，請要求補足餘額。")
+            continue
+        else:
+            print(f"💵 結帳完成！應找零金額給顧客： ${change}")
+            # 扣減核心庫存
+            for item_id, qty in order.items():
+                menu[item_id]['stock'] -= qty
+            return True
+
+# =====================================================================
+# 五、主程式控制迴圈 (系統入口)
+# =====================================================================
+
 def main():
     while True:
         print("\n" + "╔" + "═"*32 + "╗")
