@@ -11,6 +11,22 @@ Original file is located at
 # [邢譯云 負責] 三、商業運算邏輯與動態找零收支系統
 # =====================================================================
 
+import sys
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
+# Menu test data
+menu = {
+    1: {"name": "招牌漢堡", "price": 80, "cost": 45, "stock": 20},
+    2: {"name": "雞腿便當", "price": 110, "cost": 65, "stock": 15},
+    3: {"name": "珍珠奶茶", "price": 55, "cost": 25, "stock": 30},
+    4: {"name": "薯條", "price": 45, "cost": 20, "stock": 25},
+    5: {"name": "沙拉", "price": 70, "cost": 35, "stock": 12},
+}
+
+order_history = []
+
 def calculate_total(order):
     """動態計算單筆訂單的總售價"""
     return sum(menu[item_id]["price"] * qty for item_id, qty in order.items())
@@ -18,6 +34,10 @@ def calculate_total(order):
 def calculate_total_cost(order):
     """計算單筆訂單的背後總成本（用於進階獲利分析）"""
     return sum(menu[item_id]["cost"] * qty for item_id, qty in order.items())
+
+def save_order(order):
+    """Save a completed order for statistics and rollback."""
+    order_history.append(order.copy())
 
 def show_order_details(order):
     """條列明細化呈現當前點餐內容"""
@@ -59,45 +79,6 @@ def checkout(order):
             for item_id, qty in order.items():
                 menu[item_id]['stock'] -= qty
             return True
-
-# =====================================================================
-# 五、主程式控制迴圈 (系統入口)
-# =====================================================================
-
-def main():
-    while True:
-        print("\n" + "╔" + "═"*32 + "╗")
-        print("║   歡迎使用珍饕餐廳點餐管理系統   ║")
-        print("╚" + "═"*32 + "╝")
-        print("  1.  ✨ 顧客新點餐開單 (New Order)")
-        print("  2.  📊 檢視後台營運報表 (Show Statistics)")
-        print("  3.  🗑️  撤銷上一筆錯誤訂單 (Delete Last Order) ※店長權限")
-        print("  0.  🚪 關閉並安全退出系統 (Exit)")
-        print("-" * 36)
-
-        choice = input(">> 請輸入功能對應數字 (0-3): ").strip()
-
-        if choice == "1":
-            current_order = create_order()
-            if len(current_order) > 0:
-                if checkout(current_order):
-                    save_order(current_order)
-                    print("✅【系統通知】該筆點餐訂單已成功存檔至後台歷史資料庫。")
-            else:
-                print("↩️【回主選單】您剛剛未選購任何餐點，已自動取消本次開單。")
-
-        elif choice == "2":
-            show_statistics()
-        elif choice == "3":
-            delete_last_order()
-        elif choice == "0":
-            print("👋【感謝使用】系統已安全登出並關閉。祝您今日營業額長紅！")
-            break
-        else:
-            print("❌【選項錯誤】無此功能代碼，請重新輸入 0 到 3 之間的整數。")
-
-if __name__ == "__main__":
-    main()
 
 # =====================================================================
 # [柯盛禾] 二、前端交互介面與中文字寬防呆系統
@@ -165,3 +146,103 @@ def create_order():
             print("❌【無此餐點】菜單中沒有這個編號，請看清楚菜單再選一次。")
 
     return order
+
+# =====================================================================
+# [鄭瑛慧] 四、訂單儲存與統計
+# =====================================================================
+
+def show_statistics():
+    """Show sales statistics for completed orders."""
+    if not order_history:
+        print("\n目前還沒有任何已完成訂單。")
+        return
+
+    total_revenue = 0
+    total_cost = 0
+    item_sales = {}
+
+    for order in order_history:
+        total_revenue += calculate_total(order)
+        total_cost += calculate_total_cost(order)
+
+        for item_id, qty in order.items():
+            item_sales[item_id] = item_sales.get(item_id, 0) + qty
+
+    total_profit = total_revenue - total_cost
+
+    print("\n" + "=" * 14 + " 銷售統計 " + "=" * 14)
+    print(f"總訂單數：{len(order_history)}")
+    print(f"總營收：${total_revenue}")
+    print(f"總成本：${total_cost}")
+    print(f"總利潤：${total_profit}")
+    print("-" * 38)
+    print(f"{'品項':<16} {'數量':>6} {'小計':>8}")
+    print("-" * 38)
+
+    for item_id, qty in sorted(item_sales.items()):
+        item = menu[item_id]
+        subtotal = item["price"] * qty
+        pad = get_pad_len(item["name"], 16)
+        name_str = item["name"] + " " * pad
+        print(f"{name_str} {qty:>6} ${subtotal:>7}")
+
+    print("=" * 38)
+
+def delete_last_order():
+    """Delete the most recent completed order and restore stock."""
+    if not order_history:
+        print("\n目前沒有可刪除的訂單。")
+        return False
+
+    last_order = order_history.pop()
+
+    for item_id, qty in last_order.items():
+        menu[item_id]["stock"] += qty
+
+    print("\n已刪除最後一筆訂單，並恢復庫存：")
+    for item_id, qty in last_order.items():
+        item = menu[item_id]
+        subtotal = item["price"] * qty
+        print(f"- {item['name']} x {qty}，小計 ${subtotal}")
+    return True
+
+# =====================================================================
+# 五、主程式控制迴圈 (系統入口)
+# =====================================================================
+
+def main():
+    while True:
+        print("\n" + "╔" + "═"*32 + "╗")
+        print("║   歡迎使用珍饕餐廳點餐管理系統   ║")
+        print("╚" + "═"*32 + "╝")
+        print("  1.  ✨ 顧客新點餐開單 (New Order)")
+        print("  2.  📊 檢視後台營運報表 (Show Statistics)")
+        print("  3.  🗑️  撤銷上一筆錯誤訂單 (Delete Last Order) ※店長權限")
+        print("  0.  🚪 關閉並安全退出系統 (Exit)")
+        print("-" * 36)
+
+        choice = input(">> 請輸入功能對應數字 (0-3): ").strip()
+
+        if choice == "1":
+            current_order = create_order()
+            if len(current_order) > 0:
+                if checkout(current_order):
+                    save_order(current_order)
+                    print("✅【系統通知】該筆點餐訂單已成功存檔至後台歷史資料庫。")
+            else:
+                print("↩️【回主選單】您剛剛未選購任何餐點，已自動取消本次開單。")
+
+        elif choice == "2":
+            show_statistics()
+        elif choice == "3":
+            delete_last_order()
+        elif choice == "0":
+            print("👋【感謝使用】系統已安全登出並關閉。祝您今日營業額長紅！")
+            break
+        else:
+            print("❌【選項錯誤】無此功能代碼，請重新輸入 0 到 3 之間的整數。")
+
+
+
+if __name__ == "__main__":
+    main()
